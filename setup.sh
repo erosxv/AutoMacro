@@ -35,14 +35,14 @@ say "Usando $($PY --version) ($(command -v $PY))"
 if [ "$INSTALL_SYSTEM_DEPS" = "1" ]; then
   say "Instalando bibliotecas do sistema exigidas pelo Qt"
   if command -v apt-get >/dev/null 2>&1; then
-    sudo apt-get install -y python3-venv libxcb-cursor0 \
+    sudo apt-get install -y python3-venv libegl1 libgl1 libxcb-cursor0 \
       libxkbcommon-x11-0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 \
       libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 libxcb-xkb1
   elif command -v dnf >/dev/null 2>&1; then
-    sudo dnf install -y xcb-util-cursor xcb-util-wm xcb-util-image \
+    sudo dnf install -y mesa-libEGL mesa-libGL xcb-util-cursor xcb-util-wm xcb-util-image \
       xcb-util-keysyms xcb-util-renderutil libxkbcommon-x11
   elif command -v pacman >/dev/null 2>&1; then
-    sudo pacman -S --needed --noconfirm xcb-util-cursor xcb-util-wm \
+    sudo pacman -S --needed --noconfirm libglvnd xcb-util-cursor xcb-util-wm \
       xcb-util-image xcb-util-keysyms xcb-util-renderutil libxkbcommon-x11
   else
     echo "Gerenciador de pacotes não reconhecido; instale manualmente o que o diagnóstico indicar."
