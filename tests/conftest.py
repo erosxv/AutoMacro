@@ -5,7 +5,7 @@ import pytest
 
 from automacro.core.event_bus import EventBus
 from automacro.core.session import Session
-from automacro.core.timing import set_wait_margin_ns
+from automacro.core.timing import set_wait_margin_ns, wait_margin_ns
 from automacro.input_handlers.fake_backend import FakeBackend
 from automacro.models.settings import AppSettings
 from automacro.utils.platform_info import detect_platform, enable_high_resolution_timer
@@ -22,6 +22,7 @@ def _timing_setup():
     if sys.platform.startswith("win"):
         undo = enable_high_resolution_timer()
         set_wait_margin_ns(None)
+        wait_margin_ns()          # calibra agora (o app faz isso ao iniciar), não na 1ª espera
         yield
         undo()
     else:
