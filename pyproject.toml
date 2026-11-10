@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "automacro"
+version = "0.1.0"
+description = "Auto Clicker + Gravador/Reprodutor de Macros para Windows e Linux"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "PySide6-Essentials>=6.6",
+    # No Linux o pynput declara a dependência "evdev" (sem wheel: compila na instalação), usada
+    # só pelo backend "uinput", que o app não usa. Os scripts setup.sh/setup.bat instalam o
+    # pynput com --no-deps e as demais dependências desta lista/requirements.txt.
+    "pynput>=1.7.7",
+    "platformdirs>=3.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+build = ["pyinstaller>=6.0"]
+
+[project.gui-scripts]
+automacro = "automacro.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = [
+    "x11: usa o backend real do pynput e exige um servidor X (use xvfb-run)",
+]

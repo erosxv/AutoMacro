@@ -1,0 +1,12 @@
+# Dependências de execução. Normalmente você não precisa instalar isto à mão: use
+# setup.sh (Linux) ou setup.bat (Windows), que também instalam o pynput (ver abaixo).
+PySide6-Essentials>=6.6
+platformdirs>=3.0
+
+# O pynput é instalado pelos scripts de setup com "pip install --no-deps pynput", por um
+# motivo: no Linux ele declara a dependência "evdev", que NÃO tem pacote pronto (é compilada
+# na instalação e exige gcc + cabeçalhos do Python) e só é usada pelo backend "uinput", que
+# este aplicativo não utiliza (usamos X11 no Linux e Win32 no Windows). Por isso listamos
+# aqui apenas o que o pynput realmente usa nesses backends:
+six>=1.16
+python-xlib>=0.33; sys_platform == "linux"

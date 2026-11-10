@@ -1,0 +1,1 @@
+"""Abas da janela principal."""

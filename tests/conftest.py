@@ -1,0 +1,60 @@
+import time
+
+import pytest
+
+from automacro.core.event_bus import EventBus
+from automacro.core.session import Session
+from automacro.core.timing import set_wait_margin_ns
+from automacro.input_handlers.fake_backend import FakeBackend
+from automacro.models.settings import AppSettings
+from automacro.utils.platform_info import detect_platform
+
+
+@pytest.fixture(autouse=True)
+def _fixed_timing_margin():
+    set_wait_margin_ns(2_000_000)
+    yield
+    set_wait_margin_ns(None)
+
+
+@pytest.fixture
+def backend():
+    return FakeBackend()
+
+
+@pytest.fixture
+def settings():
+    s = AppSettings()
+    s.safety.countdown_s = 0.0
+    s.safety.failsafe_corner = False
+    s.safety.confirm_imported = True
+    return s
+
+
+@pytest.fixture
+def events():
+    class Collector:
+        def __init__(self, bus: EventBus):
+            self.items = []
+            bus.subscribe(self.items.append)
+
+        def of(self, cls):
+            return [e for e in self.items if isinstance(e, cls)]
+
+    return Collector
+
+
+@pytest.fixture
+def session(backend, settings):
+    s = Session(backend, settings, EventBus(), platform=detect_platform({}, "linux"))
+    yield s
+    s.shutdown()
+
+
+def wait_until(predicate, timeout=3.0, step=0.005):
+    end = time.monotonic() + timeout
+    while time.monotonic() < end:
+        if predicate():
+            return True
+        time.sleep(step)
+    return predicate()

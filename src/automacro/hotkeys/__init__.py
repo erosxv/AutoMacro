@@ -1,0 +1,1 @@
+"""Atalhos globais configuráveis."""
