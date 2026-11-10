@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import logging
 
-from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QCloseEvent
+from PySide6.QtCore import Qt, QTimer, QUrl
+from PySide6.QtGui import QCloseEvent, QDesktopServices
 from PySide6.QtWidgets import (
     QApplication,
     QFrame,
@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from automacro import APP_NAME, __version__
+from automacro import APP_NAME, __version__, updater
 from automacro.core.errors import AutoMacroError
 from automacro.core.event_bus import ActivityFinished, Countdown, Notice, StateChanged
 from automacro.hotkeys.parser import HotkeyError
@@ -31,6 +31,7 @@ from automacro.ui.tabs.player import PlayerTab
 from automacro.ui.tabs.recorder import RecorderTab
 from automacro.ui.tabs.settings import SettingsTab
 from automacro.ui.theme import STATE_COLORS, build_qss, palette
+from automacro.ui.updates import UpdateController
 from automacro.ui.widgets import StatusPill, muted_label
 
 log = logging.getLogger(__name__)
@@ -83,6 +84,32 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.banner)
         self._fill_banner()
 
+        # ---- aviso de versão nova (só aparece quando há atualização) ----------------------
+        self._update_info = None
+        self.update_bar = QFrame()
+        self.update_bar.setObjectName("updatebar")
+        ub = QHBoxLayout(self.update_bar)
+        ub.setContentsMargins(12, 8, 12, 8)
+        self.update_label = QLabel()
+        self.update_label.setWordWrap(True)
+        self.update_now = QPushButton("Atualizar agora")
+        self.update_now.setObjectName("primary")
+        self.update_later = QPushButton("Depois")
+        ub.addWidget(self.update_label, 1)
+        ub.addWidget(self.update_now)
+        ub.addWidget(self.update_later)
+        self.update_bar.setVisible(False)
+        layout.addWidget(self.update_bar)
+
+        self.updates = UpdateController(self)
+        self.updates.checked.connect(self._on_update_checked)
+        self.updates.check_failed.connect(self._on_update_check_failed)
+        self.updates.progress.connect(self._on_update_progress)
+        self.updates.ready.connect(self._on_update_ready)
+        self.updates.download_failed.connect(self._on_update_download_failed)
+        self.update_now.clicked.connect(self._start_update)
+        self.update_later.clicked.connect(lambda: self.update_bar.setVisible(False))
+
         # ---- abas ----------------------------------------------------------------
         self.tabs = QTabWidget()
         self.autoclicker = AutoClickerTab(ctx, self.show_error)
@@ -101,6 +128,7 @@ class MainWindow(QMainWindow):
         self.library.use_in_player.connect(self._use_in_player)
         self.library.changed.connect(lambda: self.player.refresh_macros())
         self.settings_tab.applied.connect(self.apply_settings)
+        self.settings_tab.check_requested.connect(self._manual_update_check)
         ctx.bridge.event.connect(self._on_event)
 
         # ---- barra de status -------------------------------------------------------
@@ -196,6 +224,84 @@ class MainWindow(QMainWindow):
     def _refresh_hotkey_hints(self) -> None:
         for tab in self._tab_list:
             tab.refresh_hotkeys()
+
+    # ======================================================================================
+    # Atualização automática
+    # ======================================================================================
+    def start_update_check(self) -> None:
+        """Verificação silenciosa ao abrir o programa (se habilitada nas configurações)."""
+        if self.ctx.settings.updates.auto_check:
+            QTimer.singleShot(4000, lambda: self.updates.check(manual=False))
+
+    def _manual_update_check(self) -> None:
+        if self.updates.check(manual=True):
+            self.settings_tab.set_update_status("Verificando…", busy=True)
+
+    def _on_update_checked(self, info, manual: bool) -> None:
+        self.settings_tab.set_update_status(
+            f"Nova versão disponível: {info.version}" if info
+            else f"Você já está na versão mais recente ({__version__}).")
+        if info is None:
+            if manual:
+                self.show_notice("Você já está na versão mais recente.", "info")
+            return
+        self._update_info = info
+        self.update_label.setText(f"Nova versão disponível: {info.version} (você está na {__version__}).")
+        self.update_now.setEnabled(True)
+        self.update_now.setText("Atualizar agora")
+        self.update_bar.setVisible(True)
+
+    def _on_update_check_failed(self, message: str, manual: bool) -> None:
+        self.settings_tab.set_update_status(message)
+        if manual:
+            self.show_notice(message, "warning")
+
+    def _start_update(self) -> None:
+        info = self._update_info
+        if info is None:
+            return
+        if self.ctx.session.state is not AppState.IDLE:
+            self.show_error("Pare a gravação, a reprodução ou o Auto Clicker antes de atualizar.")
+            return
+        if not updater.can_self_update():
+            # Linux ou execução a partir do código-fonte: abre a página de download.
+            QDesktopServices.openUrl(QUrl(info.page_url))
+            return
+        if self.updates.download(info):
+            self.update_now.setEnabled(False)
+            self.update_label.setText("Baixando a atualização…")
+
+    def _on_update_progress(self, done: int, total: int) -> None:
+        if total > 0:
+            self.update_label.setText(f"Baixando a atualização… {done * 100 // total}%")
+
+    def _on_update_download_failed(self, message: str) -> None:
+        self.update_now.setEnabled(True)
+        if self._update_info is not None:
+            self.update_label.setText(f"Nova versão disponível: {self._update_info.version}.")
+        self.show_error(f"Não foi possível atualizar: {message}")
+
+    def _on_update_ready(self, path) -> None:
+        if self.ctx.session.state is not AppState.IDLE:
+            self.update_now.setEnabled(True)
+            self.show_error("Pare a atividade em andamento e clique em Atualizar agora de novo.")
+            return
+        if not self.recorder.confirm_discard_pending():
+            self.update_now.setEnabled(True)
+            return
+        try:
+            self.collect_settings()
+            self.ctx.store.save(self.ctx.settings)
+        except Exception:
+            log.exception("Falha ao salvar configurações antes de atualizar")
+        try:
+            updater.launch_installer(path)
+        except updater.UpdateError as exc:
+            self.update_now.setEnabled(True)
+            self.show_error(str(exc))
+            return
+        self.update_label.setText("Instalando… o programa vai fechar e abrir de novo.")
+        QTimer.singleShot(300, QApplication.quit)
 
     # ======================================================================================
     # Configurações

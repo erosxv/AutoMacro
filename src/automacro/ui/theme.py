@@ -48,6 +48,7 @@ QTabBar::tab:hover:!selected {{ color: {c['text']}; }}
 
 QFrame#card {{ background: {c['surface2']}; border: 1px solid {c['border']}; border-radius: 10px; }}
 QFrame#banner {{ background: {c['surface2']}; border: 1px solid {c['warning']}; border-radius: 8px; }}
+QFrame#updatebar {{ background: {c['surface2']}; border: 1px solid {c['accent']}; border-radius: 8px; }}
 
 QPushButton {{ background: {c['surface2']}; border: 1px solid {c['border']}; border-radius: 8px;
               padding: 7px 14px; }}

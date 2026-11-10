@@ -152,3 +152,60 @@ def test_environment_banner_reports_unavailable_features(qapp, tmp_path):
     ctx.bridge.close()
     session.shutdown()
     window.close()
+
+
+def _fake_info(version="9.9.9"):
+    from automacro.updater import UpdateInfo
+
+    return UpdateInfo(version=version, tag="v" + version, installer_url="https://github.com/x",
+                      sha256="0" * 64, checksum_url=None, size=1, notes="", page_url="https://github.com/x")
+
+
+def test_update_bar_appears_only_when_a_newer_version_exists(ui):
+    app, window, ctx, _ = ui
+    assert not window.update_bar.isVisible()          # abrir a janela nunca consulta a internet
+    window.updates.checked.emit(None, True)
+    app.processEvents()
+    assert not window.update_bar.isVisible()
+    assert "mais recente" in window.settings_tab.update_status.text()
+
+    window.updates.checked.emit(_fake_info(), False)
+    app.processEvents()
+    assert window.update_bar.isVisible()
+    assert "9.9.9" in window.update_label.text()
+    shot(window, "atualizacao_disponivel")
+    window.update_later.click()
+    assert not window.update_bar.isVisible()
+
+
+def test_update_is_refused_while_an_activity_is_running(ui, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+
+    app, window, ctx, _ = ui
+    shown = []
+    monkeypatch.setattr(QMessageBox, "warning", lambda *a, **k: shown.append(a[-1]))
+    started = []
+    monkeypatch.setattr(window.updates, "download", lambda info: started.append(info) or True)
+    window.updates.checked.emit(_fake_info(), False)
+    ctx.settings.autoclick.interval_ms = 5
+    ctx.session.start_autoclick()
+    assert pump(app, lambda: ctx.session.state is AppState.AUTOCLICKING)
+    window.update_now.click()
+    assert shown and "antes de atualizar" in shown[0]
+    assert started == []                               # nada foi baixado
+    ctx.session.emergency_stop()
+    assert pump(app, lambda: ctx.session.state is AppState.IDLE)
+
+
+def test_auto_check_setting_is_saved_from_the_settings_tab(ui):
+    app, window, ctx, _ = ui
+    assert window.settings_tab.auto_update.isChecked()
+    window.settings_tab.auto_update.setChecked(False)
+    window.collect_settings()
+    assert ctx.settings.updates.auto_check is False
+    checks = []
+    window.updates.check = lambda manual=False: checks.append(manual) or True
+    window.start_update_check()                        # desligado: não agenda nada
+    app.processEvents()
+    time.sleep(0.05)
+    assert checks == []

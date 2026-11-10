@@ -154,6 +154,14 @@ class UISettings:
 
 
 @dataclass
+class UpdateSettings:
+    auto_check: bool = True             # verifica versão nova ao abrir (nunca instala sozinho)
+
+    def sanitize(self) -> "UpdateSettings":
+        return self
+
+
+@dataclass
 class AppSettings:
     autoclick: AutoClickConfig = field(default_factory=AutoClickConfig)
     hotkeys: HotkeySettings = field(default_factory=HotkeySettings)
@@ -161,10 +169,11 @@ class AppSettings:
     player: PlayerSettings = field(default_factory=PlayerSettings)
     safety: SafetySettings = field(default_factory=SafetySettings)
     ui: UISettings = field(default_factory=UISettings)
+    updates: UpdateSettings = field(default_factory=UpdateSettings)
 
     def sanitize(self) -> "AppSettings":
         for part in (self.autoclick, self.hotkeys, self.recorder, self.player, self.safety,
-                     self.ui):
+                     self.ui, self.updates):
             part.sanitize()
         return self
 
@@ -181,4 +190,5 @@ class AppSettings:
             player=_load(PlayerSettings, data.get("player")),
             safety=_load(SafetySettings, data.get("safety")),
             ui=_load(UISettings, data.get("ui")),
+            updates=_load(UpdateSettings, data.get("updates")),
         ).sanitize()

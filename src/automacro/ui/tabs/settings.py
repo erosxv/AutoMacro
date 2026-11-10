@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from automacro import __version__
 from automacro.hotkeys.parser import HotkeyError, find_conflicts
 from automacro.models.settings import HOTKEY_LABELS, AppSettings, HotkeySettings
 from automacro.ui.tabs.base import BaseTab
@@ -27,6 +28,7 @@ from automacro.ui.widgets import Card, HotkeyEdit, heading, muted_label
 
 class SettingsTab(BaseTab):
     applied = Signal()                 # configurações aplicadas (atalhos, tema…)
+    check_requested = Signal()         # usuário clicou em "Verificar agora"
 
     def __init__(self, ctx, on_error) -> None:
         super().__init__(ctx)
@@ -91,6 +93,22 @@ class SettingsTab(BaseTab):
         look.body.addLayout(row)
         root.addWidget(look)
 
+        upd = Card()
+        upd.body.addWidget(heading("Atualizações"))
+        self.auto_update = QCheckBox("Verificar se há versão nova ao abrir o programa")
+        upd.body.addWidget(self.auto_update)
+        urow = QHBoxLayout()
+        self.check_btn = QPushButton("Verificar agora")
+        self.check_btn.clicked.connect(self.check_requested.emit)
+        self.update_status = muted_label(f"Versão instalada: {__version__}")
+        self.update_status.setWordWrap(True)
+        urow.addWidget(self.check_btn)
+        urow.addWidget(self.update_status, 1)
+        upd.body.addLayout(urow)
+        upd.body.addWidget(muted_label(
+            "O programa só avisa; nada é instalado sem você clicar em \"Atualizar agora\"."))
+        root.addWidget(upd)
+
         env = Card()
         env.body.addWidget(heading("Compatibilidade deste sistema"))
         self.env_text = QPlainTextEdit()
@@ -138,6 +156,7 @@ class SettingsTab(BaseTab):
         self.failsafe.setChecked(s.failsafe_corner)
         self.confirm_imported.setChecked(s.confirm_imported)
         self.theme.setCurrentIndex(max(0, self.theme.findData(settings.ui.theme)))
+        self.auto_update.setChecked(settings.updates.auto_check)
 
     def collect_settings(self, settings: AppSettings) -> None:
         defaults = HotkeySettings()
@@ -150,6 +169,11 @@ class SettingsTab(BaseTab):
         s.failsafe_corner = self.failsafe.isChecked()
         s.confirm_imported = self.confirm_imported.isChecked()
         settings.ui.theme = self.theme.currentData()
+        settings.updates.auto_check = self.auto_update.isChecked()
+
+    def set_update_status(self, text: str, busy: bool = False) -> None:
+        self.update_status.setText(text)
+        self.check_btn.setEnabled(not busy)
 
     def _reset_hotkeys(self) -> None:
         defaults = HotkeySettings()

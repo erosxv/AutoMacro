@@ -67,6 +67,7 @@ def main(argv: list[str] | None = None) -> int:
     window = MainWindow(ctx)
     window.show()
     session.start_hotkeys()
+    window.start_update_check()
 
     def cleanup() -> None:
         ctx.bridge.close()

@@ -2,7 +2,22 @@
 
 Auto Clicker e Gravador/Reprodutor de Macros para **Windows 10/11** e **Linux** (X11; Wayland com limitações).
 
-## Instalação (automática)
+## Windows: instalador pronto (recomendado)
+
+Baixe **`AutoMacro-Setup.exe`** na página de [Releases](../../releases/latest) e abra. Ele instala só
+para o seu usuário (não pede administrador) e cria atalhos. O Windows pode mostrar "O Windows
+protegeu seu PC" porque o programa não tem assinatura digital paga: clique em *Mais informações* e
+*Executar assim mesmo*. Também há `AutoMacro-windows.zip` (versão portátil, sem instalar).
+
+**Atualização automática:** ao abrir, o programa consulta se há versão nova (dá para desligar em
+*Configurações → Atualizações*) e mostra um aviso com o botão **Atualizar agora**. Ele baixa o
+instalador, confere o SHA-256, fecha, instala e abre de novo. Nada é instalado sem você clicar, e
+só são aceitos downloads de servidores do GitHub.
+
+Cada atualização enviada ao ramo `main` gera sozinha uma versão numerada (`v0.1.N`) no GitHub
+Actions, que roda os testes, monta o executável e o instalador e publica.
+
+## Instalação a partir do código-fonte (automática)
 
 Você não precisa instalar bibliotecas manualmente.
 

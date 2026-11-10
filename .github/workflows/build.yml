@@ -33,11 +33,21 @@ jobs:
 
   build-windows:
     runs-on: windows-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Definir a versão deste build
+        id: ver
+        shell: pwsh
+        run: |
+          if ("${{ github.ref_type }}" -eq "tag") { $v = "${{ github.ref_name }}".TrimStart("v") }
+          else { $v = "0.1.${{ github.run_number }}" }
+          "version=$v" >> $env:GITHUB_OUTPUT
+          python packaging/set_version.py $v
       - name: Dependências
         run: |
           python -m pip install -r requirements-dev.txt
@@ -49,38 +59,63 @@ jobs:
           QT_QPA_PLATFORM: offscreen
       - name: Gerar executável
         run: python -m PyInstaller --noconfirm --clean --distpath dist --workpath build/pyinstaller packaging/automacro.spec
-      - name: Compactar
-        run: Compress-Archive -Path dist/AutoMacro -DestinationPath AutoMacro-windows.zip
+      - name: Instalador (Inno Setup)
         shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=${{ steps.ver.outputs.version }}" packaging\installer.iss
+          if (-not (Test-Path dist\AutoMacro-Setup.exe)) { throw "instalador não foi gerado" }
+          $hash = (Get-FileHash dist\AutoMacro-Setup.exe -Algorithm SHA256).Hash.ToLower()
+          "$hash  AutoMacro-Setup.exe" | Out-File -Encoding ascii dist\AutoMacro-Setup.exe.sha256
+      - name: Testar o instalador (instala em silêncio e desinstala)
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP "AM"
+          $p = Start-Process dist\AutoMacro-Setup.exe -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/CURRENTUSER","/NORESTART","/DIR=$dir" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "instalador saiu com código $($p.ExitCode)" }
+          if (-not (Test-Path "$dir\AutoMacro.exe")) { throw "AutoMacro.exe não foi instalado" }
+          $r = Start-Process "$dir\AutoMacro.exe" -ArgumentList "--version" -Wait -PassThru
+          if ($r.ExitCode -ne 0) { throw "AutoMacro.exe --version saiu com código $($r.ExitCode)" }
+          $u = Start-Process "$dir\unins000.exe" -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES" -Wait -PassThru
+          Write-Host "instalação e desinstalação OK"
+      - name: Compactar versão portátil
+        shell: pwsh
+        run: Compress-Archive -Path dist/AutoMacro -DestinationPath dist/AutoMacro-windows.zip
       - uses: actions/upload-artifact@v4
         with:
           name: AutoMacro-windows
-          path: AutoMacro-windows.zip
+          path: |
+            dist/AutoMacro-Setup.exe
+            dist/AutoMacro-Setup.exe.sha256
+            dist/AutoMacro-windows.zip
 
   release:
-    # Em todo push no main publica/atualiza a versão "latest"; em tags v* publica a versão da tag.
+    # Em todo push no main publica uma versão nova (v0.1.N); em tags v* publica a da tag.
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     needs: [test-linux, build-windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: AutoMacro-windows
-      - name: Mover a tag "latest" para este commit
-        if: github.ref == 'refs/heads/main'
-        run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@users.noreply.github.com"
-          git tag -f latest
-          git push -f origin latest
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref == 'refs/heads/main' && 'latest' || github.ref_name }}
-          name: ${{ github.ref == 'refs/heads/main' && 'AutoMacro - última versão' || github.ref_name }}
-          body: "Baixe AutoMacro-windows.zip, extraia a pasta inteira e abra AutoMacro.exe."
-          files: AutoMacro-windows.zip
+          tag_name: v${{ needs.build-windows.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          name: AutoMacro ${{ needs.build-windows.outputs.version }}
+          body: |
+            **Instalar:** baixe `AutoMacro-Setup.exe` e abra.
+            **Versão portátil:** `AutoMacro-windows.zip` (extraia a pasta inteira e abra `AutoMacro.exe`).
+            Quem já tem o programa instalado recebe um aviso dentro do app.
+          files: |
+            AutoMacro-Setup.exe
+            AutoMacro-Setup.exe.sha256
+            AutoMacro-windows.zip
           overwrite_files: true
           make_latest: true
+      - name: Remover a versão antiga "latest" (substituída por versões numeradas)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release delete latest --cleanup-tag --yes -R "${{ github.repository }}" || true
