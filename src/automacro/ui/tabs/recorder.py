@@ -49,6 +49,7 @@ class RecorderTab(BaseTab):
         root.addWidget(opts)
 
         run = Card()
+        self.run_card = run     # fica fixo embaixo da janela (fora da rolagem)
         row = QHBoxLayout()
         self.start_btn = QPushButton("Gravar")
         self.start_btn.setObjectName("primary")

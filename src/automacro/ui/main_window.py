@@ -51,14 +51,30 @@ def _nav_button(text: str, name: str) -> QPushButton:
     return button
 
 
-def _scrolled(widget: QWidget) -> QScrollArea:
-    """Página rolável: em janela baixa ela rola, em vez de o Qt espremer os campos."""
+def _scrolled(widget: QWidget) -> QWidget:
+    """Página rolável: em janela baixa ela rola, em vez de o Qt espremer os campos.
+
+    O cartão de ação da página (Iniciar/Parar, Gravar, Reproduzir), se houver, sai da rolagem e
+    fica fixo embaixo: a ação principal nunca some atrás da barra de rolagem."""
     area = QScrollArea()
     area.setWidgetResizable(True)
     area.setFrameShape(QFrame.Shape.NoFrame)
     area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
     area.setWidget(widget)
-    return area
+    pinned = getattr(widget, "run_card", None)
+    if pinned is None:
+        return area
+    widget.layout().removeWidget(pinned)
+    container = QWidget()
+    box = QVBoxLayout(container)
+    box.setContentsMargins(0, 0, 0, 0)
+    box.setSpacing(0)
+    box.addWidget(area, 1)
+    holder = QVBoxLayout()
+    holder.setContentsMargins(18, 4, 18, 6)
+    holder.addWidget(pinned)
+    box.addLayout(holder)
+    return container
 
 
 class MainWindow(QMainWindow):
@@ -105,12 +121,17 @@ class MainWindow(QMainWindow):
         # ---- aviso de limitações do sistema -------------------------------------------
         self.banner = QFrame()
         self.banner.setObjectName("banner")
-        banner_layout = QVBoxLayout(self.banner)
-        banner_layout.setContentsMargins(12, 8, 12, 8)
+        banner_layout = QHBoxLayout(self.banner)
+        banner_layout.setContentsMargins(12, 8, 6, 8)
         self.banner_text = QLabel()
         self.banner_text.setWordWrap(True)
+        self.banner_text.setProperty("muted", True)
         self.banner_text.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        banner_layout.addWidget(self.banner_text)
+        banner_layout.addWidget(self.banner_text, 1)
+        self.banner_close = QPushButton("Ocultar")
+        self.banner_close.setObjectName("flat")
+        self.banner_close.clicked.connect(lambda: self.banner.setVisible(False))
+        banner_layout.addWidget(self.banner_close, 0, Qt.AlignmentFlag.AlignTop)
         layout.addWidget(self.banner)
         self._fill_banner()
 
@@ -238,7 +259,7 @@ class MainWindow(QMainWindow):
         lines = caps.problem_lines()
         self.banner.setVisible(bool(lines))
         if lines:
-            self.banner_text.setText("⚠  " + "\n⚠  ".join(lines))
+            self.banner_text.setText("\n".join(lines))
 
     def apply_theme(self) -> None:
         theme = self.ctx.settings.ui.theme

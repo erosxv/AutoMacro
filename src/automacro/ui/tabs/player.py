@@ -75,6 +75,7 @@ class PlayerTab(BaseTab):
         root.addWidget(opts)
 
         run = Card()
+        self.run_card = run     # fica fixo embaixo da janela (fora da rolagem)
         buttons = QHBoxLayout()
         self.play_btn = QPushButton("Reproduzir")
         self.play_btn.setObjectName("primary")

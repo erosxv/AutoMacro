@@ -105,6 +105,7 @@ class AutoClickerTab(BaseTab):
         root.addWidget(pos)
 
         run = Card()
+        self.run_card = run     # fica fixo embaixo da janela (fora da rolagem)
         row = QHBoxLayout()
         self.start_btn = QPushButton("Iniciar")
         self.start_btn.setObjectName("primary")

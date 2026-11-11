@@ -47,7 +47,9 @@ QTabBar::tab:selected {{ color: {c['text']}; border-bottom: 2px solid {c['accent
 QTabBar::tab:hover:!selected {{ color: {c['text']}; }}
 
 QFrame#card {{ background: {c['surface2']}; border: 1px solid {c['border']}; border-radius: 10px; }}
-QFrame#banner {{ background: {c['surface2']}; border: 1px solid {c['warning']}; border-radius: 8px; }}
+QFrame#banner {{ background: {c['surface2']}; border: none; border-radius: 10px; }}
+QPushButton#flat {{ background: transparent; border: none; color: {c['muted']}; padding: 4px 10px; }}
+QPushButton#flat:hover {{ color: {c['text']}; }}
 QFrame#updatebar {{ background: {c['surface2']}; border: 1px solid {c['accent']}; border-radius: 8px; }}
 
 QPushButton {{ background: {c['surface2']}; border: 1px solid {c['border']}; border-radius: 8px;
@@ -91,6 +93,9 @@ QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {{
    regras ele receberia borda e margem em dobro e ficaria espremido (visto no Windows). */
 QSpinBox QLineEdit, QDoubleSpinBox QLineEdit, QComboBox QLineEdit {{
   border: none; padding: 0; background: transparent; min-height: 0; }}
+/* Sem as setinhas nativas (feias): digita-se o valor; roda do mouse e setas do teclado funcionam.
+   (setButtonSymbols(NoButtons) esconde o texto quando há stylesheet; largura zero não.) */
+QAbstractSpinBox::up-button, QAbstractSpinBox::down-button {{ width: 0; border: none; }}
 QKeySequenceEdit {{ background: transparent; border: none; padding: 0; }}
 QLineEdit:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled, QComboBox:disabled {{ color: {c['muted']}; }}
 QComboBox QAbstractItemView {{ background: {c['surface']}; border: 1px solid {c['border']};
