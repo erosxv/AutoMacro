@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QKeySequenceEdit,
     QLabel,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -59,14 +60,15 @@ class StatusPill(QLabel):
     def __init__(self) -> None:
         super().__init__("Ocioso")
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.setMinimumWidth(170)
+        self.setMinimumWidth(110)
+        self.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
         self.set_color("#4b5263", "Ocioso")
 
     def set_color(self, color: str, text: str) -> None:
         self.setText(text)
         self.setStyleSheet(
-            f"background: {color}; color: white; border-radius: 14px; padding: 6px 16px;"
-            "font-weight: 700; font-size: 13px;")
+            f"background: {color}; color: white; border-radius: 14px; padding: 6px 14px;"
+            "font-weight: 600; font-size: 13px;")
 
 
 class HotkeyEdit(QWidget):

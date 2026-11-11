@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtWidgets import QWidget
+from PySide6.QtWidgets import QFormLayout, QWidget
 
 from automacro.models.settings import AppSettings
 from automacro.models.state import AppState
@@ -32,3 +32,14 @@ class BaseTab(QWidget):
 
     def load_settings(self, settings: AppSettings) -> None:
         """Preenche os widgets a partir de ``settings``."""
+
+    def set_compact(self, compact: bool) -> None:
+        """Janela estreita: rótulo em cima do campo, para nada ficar cortado."""
+        policy = (QFormLayout.RowWrapPolicy.WrapAllRows if compact
+                  else QFormLayout.RowWrapPolicy.WrapLongRows)
+        for form in self.findChildren(QFormLayout):
+            form.setRowWrapPolicy(policy)
+            form.invalidate()
+        if self.layout() is not None:
+            self.layout().invalidate()
+            self.layout().activate()

@@ -72,17 +72,38 @@ def shot(window, name):
         window.grab().save(os.path.join(SHOTS, f"{name}.png"))
 
 
-def test_window_builds_with_all_tabs(ui):
+def test_window_builds_with_all_pages(ui):
     app, window, ctx, _ = ui
-    assert window.tabs.count() == 5
-    assert [window.tabs.tabText(i) for i in range(5)] == [
-        "Auto Clicker", "Gravador", "Reprodutor", "Biblioteca", "Configurações"]
-    for i in range(window.tabs.count()):
-        window.tabs.setCurrentIndex(i)
+    assert window.pages.count() == 3
+    assert [b.text() for b in window._nav_buttons] == ["Auto Clicker", "Macros", "Ajustes"]
+    for i in range(window.pages.count()):
+        window.show_page(i)
+        app.processEvents()
+        assert window.pages.currentIndex() == i
+        assert not window.grab().isNull()
+        shot(window, f"pagina{i}_{window._page_names[i].replace(' ', '_')}")
+    assert window.emergency.isEnabled()
+
+
+def test_layout_is_responsive(ui):
+    app, window, ctx, _ = ui
+    window.resize(900, 680)
+    app.processEvents()
+    assert window._compact is False
+    assert window._shell.direction().name == "LeftToRight"
+    shot(window, "layout_largo")
+    window.resize(400, 700)
+    app.processEvents()
+    assert window._compact is True
+    assert window._shell.direction().name == "TopToBottom"
+    for i in range(window.pages.count()):
+        window.show_page(i)
         app.processEvents()
         assert not window.grab().isNull()
-        shot(window, f"aba{i}_{window.tabs.tabText(i).replace(' ', '_')}")
-    assert window.emergency.isEnabled()
+    shot(window, "layout_estreito")
+    window.resize(900, 680)
+    app.processEvents()
+    assert window._compact is False
 
 
 def test_autoclick_reflected_in_ui_and_emergency_button_stops(ui):
@@ -121,7 +142,7 @@ def test_record_save_play_flow_through_ui(ui):
     assert [i.name for i in infos] == ["Teste UI"]
     assert infos[0].event_count == 4
 
-    window.tabs.setCurrentIndex(3)
+    window.show_macro_page(window.library)
     app.processEvents()
     shot(window, "biblioteca")
 

@@ -42,6 +42,7 @@ class AutoClickerTab(BaseTab):
         card = Card()
         card.body.addWidget(heading("Configuração dos cliques"))
         form = QFormLayout()
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
         form.setHorizontalSpacing(18)
         form.setVerticalSpacing(10)
 
@@ -94,10 +95,11 @@ class AutoClickerTab(BaseTab):
         coords = QHBoxLayout()
         self.x = QSpinBox(); self.x.setRange(-100_000, 100_000); self.x.setPrefix("X  ")
         self.y = QSpinBox(); self.y.setRange(-100_000, 100_000); self.y.setPrefix("Y  ")
-        self.capture_btn = QPushButton("Capturar posição do cursor (em 3 s)")
+        self.capture_btn = QPushButton("Capturar posição (em 3 s)")
         self.capture_btn.clicked.connect(self._capture_position)
-        coords.addWidget(self.x); coords.addWidget(self.y); coords.addWidget(self.capture_btn, 1)
+        coords.addWidget(self.x, 1); coords.addWidget(self.y, 1)
         pos.body.addLayout(coords)
+        pos.body.addWidget(self.capture_btn)
         self.pos_fixed.toggled.connect(self._pos_mode_changed)
         self._pos_mode_changed()
         root.addWidget(pos)
@@ -168,7 +170,7 @@ class AutoClickerTab(BaseTab):
                 QTimer.singleShot(1000, tick)
                 return
             pos = self.ctx.session.cursor_position()
-            self.capture_btn.setText("Capturar posição do cursor (em 3 s)")
+            self.capture_btn.setText("Capturar posição (em 3 s)")
             self.capture_btn.setEnabled(True)
             if pos is None:
                 self._on_error("Não foi possível ler a posição do cursor neste sistema.")

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -42,6 +42,7 @@ class SettingsTab(BaseTab):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         content = QWidget()
         scroll.setWidget(content)
         outer.addWidget(scroll)
@@ -53,6 +54,7 @@ class SettingsTab(BaseTab):
         keys = Card()
         keys.body.addWidget(heading("Atalhos globais"))
         form = QFormLayout()
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
         form.setHorizontalSpacing(18)
         for name, label in HOTKEY_LABELS.items():
             edit = HotkeyEdit()
@@ -67,16 +69,19 @@ class SettingsTab(BaseTab):
         safety = Card()
         safety.body.addWidget(heading("Segurança"))
         sform = QFormLayout()
+        sform.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
         sform.setHorizontalSpacing(18)
         self.countdown = QDoubleSpinBox(); self.countdown.setRange(0, 30); self.countdown.setSuffix(" s")
         self.hk_countdown = QDoubleSpinBox(); self.hk_countdown.setRange(0, 30); self.hk_countdown.setSuffix(" s")
         self.max_play = QSpinBox(); self.max_play.setRange(0, 10_000); self.max_play.setSuffix(" min  (0 = sem limite)")
-        self.failsafe = QCheckBox("Parar tudo ao levar o mouse ao canto superior esquerdo da tela")
-        self.confirm_imported = QCheckBox("Pedir confirmação antes de reproduzir macros importadas")
+        self.failsafe = QCheckBox("Parar se o mouse for ao canto")
+        self.confirm_imported = QCheckBox("Confirmar macros importadas")
         sform.addRow("Contagem regressiva (botões)", self.countdown)
         sform.addRow("Contagem regressiva (atalhos)", self.hk_countdown)
         sform.addRow("Duração máxima da reprodução", self.max_play)
         safety.body.addLayout(sform)
+        self.failsafe.setToolTip("Para tudo ao levar o mouse ao canto superior esquerdo da tela")
+        self.confirm_imported.setToolTip("Pede confirmação antes de reproduzir macros que vieram de um arquivo importado")
         safety.body.addWidget(self.failsafe)
         safety.body.addWidget(self.confirm_imported)
         root.addWidget(safety)
@@ -95,7 +100,7 @@ class SettingsTab(BaseTab):
 
         upd = Card()
         upd.body.addWidget(heading("Atualizações"))
-        self.auto_update = QCheckBox("Verificar se há versão nova ao abrir o programa")
+        self.auto_update = QCheckBox("Procurar atualização ao abrir")
         upd.body.addWidget(self.auto_update)
         urow = QHBoxLayout()
         self.check_btn = QPushButton("Verificar agora")

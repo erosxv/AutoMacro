@@ -13,8 +13,11 @@ from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
     QMessageBox,
+    QBoxLayout,
+    QButtonGroup,
     QPushButton,
-    QTabWidget,
+    QScrollArea,
+    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -37,6 +40,25 @@ from automacro.ui.widgets import StatusPill, muted_label
 log = logging.getLogger(__name__)
 
 NOTICE_TIMEOUT_MS = 9000
+COMPACT_WIDTH = 640          # abaixo disso a navegação vai para baixo, como num celular
+
+
+def _nav_button(text: str, name: str) -> QPushButton:
+    button = QPushButton(text)
+    button.setObjectName(name)
+    button.setCheckable(True)
+    button.setCursor(Qt.CursorShape.PointingHandCursor)
+    return button
+
+
+def _scrolled(widget: QWidget) -> QScrollArea:
+    """Página rolável: em janela baixa ela rola, em vez de o Qt espremer os campos."""
+    area = QScrollArea()
+    area.setWidgetResizable(True)
+    area.setFrameShape(QFrame.Shape.NoFrame)
+    area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+    area.setWidget(widget)
+    return area
 
 
 class MainWindow(QMainWindow):
@@ -44,30 +66,38 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.ctx = ctx
         self.setWindowTitle(APP_NAME)
-        self.resize(900, 760)
-        self.setMinimumSize(760, 640)
+        self.resize(900, 680)
+        self.setMinimumSize(420, 560)
 
         root = QWidget()
         root.setObjectName("root")
         self.setCentralWidget(root)
-        layout = QVBoxLayout(root)
-        layout.setContentsMargins(18, 14, 18, 10)
+        # Disposição responsiva: [navegação | conteúdo] em janela larga, [conteúdo / navegação]
+        # em janela estreita. Os mesmos widgets mudam de lugar, nada é duplicado.
+        self._shell = QBoxLayout(QBoxLayout.Direction.LeftToRight, root)
+        self._shell.setContentsMargins(0, 0, 0, 0)
+        self._shell.setSpacing(0)
+        self._compact: bool | None = None
+
+        content = QWidget()
+        self._content = content
+        layout = QVBoxLayout(content)
+        layout.setContentsMargins(20, 16, 20, 10)
         layout.setSpacing(12)
 
         # ---- cabeçalho -------------------------------------------------------------
         header = QHBoxLayout()
-        titles = QVBoxLayout()
-        title = QLabel(APP_NAME)
-        title.setObjectName("title")
-        titles.addWidget(title)
-        titles.addWidget(muted_label("Auto Clicker e Gravador de Macros"))
-        header.addLayout(titles)
+        self.page_title = QLabel("Macros")
+        self.page_title.setObjectName("title")
+        header.addWidget(self.page_title)
         header.addStretch(1)
         self.pill = StatusPill()
         header.addWidget(self.pill)
-        self.emergency = QPushButton("PARADA DE EMERGÊNCIA")
-        self.emergency.setObjectName("danger")
-        self.emergency.setToolTip("Interrompe imediatamente qualquer gravação, reprodução ou auto clicker")
+        # Sempre à vista, mas neutro: parar é uma ação normal, não um alarme.
+        self.emergency = QPushButton("Parar tudo")
+        self.emergency.setObjectName("stopall")
+        self.emergency.setToolTip("Interrompe imediatamente qualquer gravação, reprodução ou auto clicker "
+                                  "(atalho de emergência: Ctrl+Shift+F9 por padrão)")
         self.emergency.clicked.connect(ctx.session.emergency_stop)
         header.addWidget(self.emergency)
         layout.addLayout(header)
@@ -110,18 +140,65 @@ class MainWindow(QMainWindow):
         self.update_now.clicked.connect(self._start_update)
         self.update_later.clicked.connect(lambda: self.update_bar.setVisible(False))
 
-        # ---- abas ----------------------------------------------------------------
-        self.tabs = QTabWidget()
+        # ---- páginas -------------------------------------------------------------
         self.autoclicker = AutoClickerTab(ctx, self.show_error)
         self.recorder = RecorderTab(ctx, self.show_error)
         self.player = PlayerTab(ctx, self.show_error)
         self.library = LibraryTab(ctx, self.show_error)
         self.settings_tab = SettingsTab(ctx, self.show_error)
         self._tab_list = [self.autoclicker, self.recorder, self.player, self.library, self.settings_tab]
-        for tab, name in zip(self._tab_list, ["Auto Clicker", "Gravador", "Reprodutor",
-                                              "Biblioteca", "Configurações"]):
-            self.tabs.addTab(tab, name)
-        layout.addWidget(self.tabs, 1)
+
+        # "Macros" reúne biblioteca, gravação e reprodução numa página só.
+        self.macro_pages = QStackedWidget()
+        macros = QWidget()
+        macros_layout = QVBoxLayout(macros)
+        macros_layout.setContentsMargins(0, 0, 0, 0)
+        macros_layout.setSpacing(12)
+        seg_row = QHBoxLayout()
+        seg_row.setSpacing(6)
+        self._seg_group = QButtonGroup(self)
+        self._seg_group.setExclusive(True)
+        for index, (page, name) in enumerate([(self.library, "Biblioteca"), (self.recorder, "Gravar"),
+                                              (self.player, "Reproduzir")]):
+            self.macro_pages.addWidget(page if page is self.library else _scrolled(page))
+            button = _nav_button(name, "seg")
+            self._seg_group.addButton(button, index)
+            seg_row.addWidget(button)
+        seg_row.addStretch(1)
+        self._seg_group.button(0).setChecked(True)
+        self._seg_group.idClicked.connect(self.macro_pages.setCurrentIndex)
+        macros_layout.addLayout(seg_row)
+        macros_layout.addWidget(self.macro_pages, 1)
+
+        self.pages = QStackedWidget()
+        self.pages.addWidget(_scrolled(self.autoclicker))
+        self.pages.addWidget(macros)
+        self.pages.addWidget(self.settings_tab)
+        layout.addWidget(self.pages, 1)
+
+        # ---- navegação (barra lateral ou inferior, conforme a largura) ---------------------
+        self.nav = QFrame()
+        self.nav.setObjectName("nav")
+        self._nav_layout = QBoxLayout(QBoxLayout.Direction.TopToBottom, self.nav)
+        self._nav_layout.setContentsMargins(12, 16, 12, 12)
+        self._nav_layout.setSpacing(4)
+        self._brand = QLabel(APP_NAME)
+        self._brand.setObjectName("brand")
+        self._nav_layout.addWidget(self._brand)
+        self._nav_group = QButtonGroup(self)
+        self._nav_group.setExclusive(True)
+        self._nav_buttons: list[QPushButton] = []
+        self._page_names = ["Auto Clicker", "Macros", "Ajustes"]
+        for index, name in enumerate(self._page_names):
+            button = _nav_button(name, "nav")
+            self._nav_group.addButton(button, index)
+            self._nav_buttons.append(button)
+            self._nav_layout.addWidget(button)
+        self._nav_stretch = self._nav_layout.addStretch(1)
+        self._nav_group.idClicked.connect(self.show_page)
+        self._nav_buttons[1].setChecked(True)
+        self.pages.setCurrentIndex(1)
+        self._apply_layout_mode(self.width() < COMPACT_WIDTH)
 
         # ---- ligações entre abas -------------------------------------------------------
         self.recorder.macro_saved.connect(self._macro_saved)
@@ -214,12 +291,71 @@ class MainWindow(QMainWindow):
     def _macro_saved(self, macro_id: str) -> None:
         self.library.refresh(macro_id)
         self.player.refresh_macros(select_id=macro_id)
-        self.tabs.setCurrentWidget(self.library)
+        self.show_macro_page(self.library)
         self.show_notice("Macro salva na biblioteca.", "info")
 
     def _use_in_player(self, macro_id: str) -> None:
         self.player.select_macro(macro_id)
-        self.tabs.setCurrentWidget(self.player)
+        self.show_macro_page(self.player)
+
+    def show_page(self, index: int) -> None:
+        self.pages.setCurrentIndex(index)
+        self._nav_buttons[index].setChecked(True)
+        self.page_title.setText(self._page_names[index])
+
+    def show_macro_page(self, page: QWidget) -> None:
+        self.show_page(1)
+        index = {self.library: 0, self.recorder: 1, self.player: 2}[page]
+        self.macro_pages.setCurrentIndex(index)
+        self._seg_group.button(index).setChecked(True)
+
+    # ---- layout responsivo -----------------------------------------------------------------
+    def _apply_layout_mode(self, compact: bool) -> None:
+        if compact == self._compact:
+            return
+        self._compact = compact
+        shell = self._shell
+        shell.removeWidget(self.nav)
+        shell.removeWidget(self._content)
+        if compact:
+            shell.setDirection(QBoxLayout.Direction.TopToBottom)
+            shell.addWidget(self._content, 1)
+            shell.addWidget(self.nav)
+            self._nav_layout.setDirection(QBoxLayout.Direction.LeftToRight)
+            self._nav_layout.setContentsMargins(8, 6, 8, 8)
+            self._brand.hide()
+            self._nav_stretch_visible(False)
+            self.nav.setFixedWidth(16777215)
+            self.nav.setMaximumHeight(16777215)
+        else:
+            shell.setDirection(QBoxLayout.Direction.LeftToRight)
+            shell.addWidget(self.nav)
+            shell.addWidget(self._content, 1)
+            self._nav_layout.setDirection(QBoxLayout.Direction.TopToBottom)
+            self._nav_layout.setContentsMargins(12, 18, 12, 12)
+            self._brand.show()
+            self._nav_stretch_visible(True)
+            self.nav.setFixedWidth(190)
+        for tab in self._tab_list:
+            tab.set_compact(compact)
+        self.nav.setProperty("compact", compact)
+        for button in self._nav_buttons:
+            button.setProperty("compact", compact)
+            button.style().unpolish(button)
+            button.style().polish(button)
+        self.nav.style().unpolish(self.nav)
+        self.nav.style().polish(self.nav)
+
+    def _nav_stretch_visible(self, visible: bool) -> None:
+        # Em modo lateral o espaço sobra embaixo; em modo inferior os botões dividem a largura.
+        index = self._nav_layout.count() - 1
+        self._nav_layout.setStretch(index, 1 if visible else 0)
+        for i in range(1, index):
+            self._nav_layout.setStretch(i, 0 if visible else 1)
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._apply_layout_mode(self.width() < COMPACT_WIDTH)
 
     def _refresh_hotkey_hints(self) -> None:
         for tab in self._tab_list:

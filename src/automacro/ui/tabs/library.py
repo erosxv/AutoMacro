@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QInputDialog,
+    QMenu,
     QMessageBox,
     QPushButton,
     QTableWidget,
@@ -48,6 +49,8 @@ class LibraryTab(BaseTab):
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         for col in (1, 2, 3, 4):
             header.setSectionResizeMode(col, QHeaderView.ResizeMode.ResizeToContents)
+        self.table.setColumnHidden(3, True)     # menos colunas = mais simples; dados seguem no arquivo
+        self.table.setColumnHidden(4, True)
         self.table.itemSelectionChanged.connect(self._update_buttons)
         self.table.itemDoubleClicked.connect(lambda *_: self._use())
         root.addWidget(self.table, 1)
@@ -55,27 +58,24 @@ class LibraryTab(BaseTab):
         self.empty = muted_label("A biblioteca está vazia. Grave uma macro ou importe um arquivo .json.")
         root.addWidget(self.empty)
 
+        # Uma ação principal à vista; o resto fica num menu, para caber em janela estreita.
         row = QHBoxLayout()
-        self.use_btn = QPushButton("Usar no Reprodutor")
+        self.use_btn = QPushButton("Reproduzir")
         self.use_btn.setObjectName("primary")
         self.use_btn.clicked.connect(self._use)
-        self.edit_btn = QPushButton("Editar eventos…")
-        self.edit_btn.clicked.connect(self._edit)
-        self.rename_btn = QPushButton("Renomear")
-        self.rename_btn.clicked.connect(self._rename)
-        self.dup_btn = QPushButton("Duplicar")
-        self.dup_btn.clicked.connect(self._duplicate)
-        self.delete_btn = QPushButton("Excluir")
-        self.delete_btn.clicked.connect(self._delete)
-        for b in (self.use_btn, self.edit_btn, self.rename_btn, self.dup_btn, self.delete_btn):
-            row.addWidget(b)
+        row.addWidget(self.use_btn)
         row.addStretch(1)
-        self.import_btn = QPushButton("Importar…")
-        self.import_btn.clicked.connect(self._import)
-        self.export_btn = QPushButton("Exportar…")
-        self.export_btn.clicked.connect(self._export)
-        row.addWidget(self.import_btn)
-        row.addWidget(self.export_btn)
+        self.more_btn = QPushButton("Mais ações")
+        menu = QMenu(self.more_btn)
+        self.edit_btn = menu.addAction("Editar eventos…", self._edit)
+        self.rename_btn = menu.addAction("Renomear", self._rename)
+        self.dup_btn = menu.addAction("Duplicar", self._duplicate)
+        self.delete_btn = menu.addAction("Excluir", self._delete)
+        menu.addSeparator()
+        self.import_btn = menu.addAction("Importar…", self._import)
+        self.export_btn = menu.addAction("Exportar…", self._export)
+        self.more_btn.setMenu(menu)
+        row.addWidget(self.more_btn)
         root.addLayout(row)
 
         self.refresh()

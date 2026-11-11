@@ -4,14 +4,14 @@ from __future__ import annotations
 
 PALETTES: dict[str, dict[str, str]] = {
     "dark": {
-        "bg": "#14161b", "surface": "#1c1f26", "surface2": "#242833", "border": "#2e3340",
-        "text": "#e6e8ee", "muted": "#8b92a5", "accent": "#5b8cff", "accent_text": "#ffffff",
+        "bg": "#17181c", "surface": "#1e2025", "surface2": "#2b2e35", "border": "#2b2e35",
+        "text": "#e8eaed", "muted": "#9aa0a8", "accent": "#4cc2a8", "accent_text": "#0e1f1b",
         "danger": "#e5484d", "success": "#30a46c", "warning": "#f5a524", "info": "#4c9aff",
         "idle": "#4b5263",
     },
     "light": {
-        "bg": "#f3f4f7", "surface": "#ffffff", "surface2": "#eceef3", "border": "#d5d9e2",
-        "text": "#1b1e27", "muted": "#667085", "accent": "#3b6cf0", "accent_text": "#ffffff",
+        "bg": "#fbfaf7", "surface": "#ffffff", "surface2": "#f1efe9", "border": "#e4e1da",
+        "text": "#1f2328", "muted": "#5b616a", "accent": "#1f7a6d", "accent_text": "#ffffff",
         "danger": "#d92d33", "success": "#1f8f58", "warning": "#c77d00", "info": "#2b7de9",
         "idle": "#98a0b3",
     },
@@ -30,7 +30,7 @@ def palette(theme: str) -> dict[str, str]:
 def build_qss(theme: str) -> str:
     c = palette(theme)
     return f"""
-* {{ font-size: 13px; }}
+* {{ font-size: 14px; }}
 QMainWindow, QDialog, QWidget#root {{ background: {c['bg']}; color: {c['text']}; }}
 QWidget {{ color: {c['text']}; }}
 QLabel {{ background: transparent; }}
@@ -62,9 +62,25 @@ QPushButton#primary:disabled {{ background: {c['border']}; color: {c['muted']}; 
 QPushButton#danger {{ background: {c['danger']}; color: white; border: none; font-weight: 700;
                      padding: 8px 16px; }}
 QPushButton#danger:hover {{ background: {c['danger']}; border: 2px solid white; padding: 6px 14px; }}
-QPushButton#stop {{ background: transparent; border: 1px solid {c['danger']}; color: {c['danger']};
-                   font-weight: 600; padding: 9px 20px; }}
+QPushButton#stopall {{ background: {c['text']}; color: {c['bg']}; border: none; font-weight: 600;
+                      padding: 8px 16px; }}
+QPushButton#stopall:hover {{ background: {c['muted']}; }}
+QPushButton#stop {{ background: transparent; border: 1px solid {c['muted']}; color: {c['text']};
+                   font-weight: 600; padding: 8px 18px; }}
 QPushButton#stop:disabled {{ border-color: {c['border']}; color: {c['muted']}; }}
+
+QFrame#nav {{ background: {c['surface']}; border: none; }}
+QLabel#brand {{ font-size: 17px; font-weight: 600; padding: 0 10px 16px 10px; }}
+QPushButton#nav {{ background: transparent; border: none; border-radius: 12px; color: {c['muted']};
+                  text-align: left; padding: 12px 14px; font-size: 15px; }}
+QPushButton#nav:hover {{ color: {c['text']}; }}
+QPushButton#nav:checked {{ background: {c['surface2']}; color: {c['text']}; font-weight: 600; }}
+QPushButton#nav[compact="true"] {{ text-align: center; padding: 12px 6px; }}
+QPushButton#seg {{ background: transparent; border: none; border-radius: 10px; color: {c['muted']};
+                  padding: 8px 16px; font-weight: 500; }}
+QPushButton#seg:hover {{ color: {c['text']}; }}
+QPushButton#seg:checked {{ background: {c['surface2']}; color: {c['text']}; }}
+QPushButton:focus {{ outline: none; border: 2px solid {c['accent']}; }}
 
 QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox {{
   background: {c['bg']}; border: 1px solid {c['border']}; border-radius: 7px; padding: 5px 8px;
@@ -81,7 +97,13 @@ QComboBox QAbstractItemView {{ background: {c['surface']}; border: 1px solid {c[
   selection-background-color: {c['accent']}; selection-color: white; }}
 
 QCheckBox, QRadioButton {{ spacing: 8px; background: transparent; }}
-QCheckBox::indicator, QRadioButton::indicator {{ width: 16px; height: 16px; }}
+QCheckBox::indicator, QRadioButton::indicator {{ width: 16px; height: 16px; background: transparent;
+  border: 1.5px solid {c['muted']}; }}
+QCheckBox::indicator {{ border-radius: 4px; }}
+QRadioButton::indicator {{ border-radius: 9px; }}
+QCheckBox::indicator:checked, QRadioButton::indicator:checked {{ background: {c['accent']};
+  border-color: {c['accent']}; }}
+QCheckBox::indicator:disabled, QRadioButton::indicator:disabled {{ border-color: {c['border']}; }}
 
 QProgressBar {{ background: {c['bg']}; border: 1px solid {c['border']}; border-radius: 6px; height: 12px;
                text-align: center; font-size: 11px; }}
