@@ -31,8 +31,12 @@ def build_qss(theme: str) -> str:
     c = palette(theme)
     check_rule = ""
     try:
+        from PySide6.QtGui import QGuiApplication
+
         from automacro.ui.icons import checkmark_file
-        path = checkmark_file(c["accent_text"], c["accent"])
+        # QPixmap sem aplicativo Qt derruba o processo (não é exceção): só desenha com app.
+        path = (checkmark_file(c["accent_text"], c["accent"])
+                if QGuiApplication.instance() is not None else None)
         if path:
             check_rule = f"QCheckBox::indicator:checked {{ image: url({path}); }}"
     except Exception:       # sem Qt/gráficos (ex.: testes de lógica): segue sem a marca
