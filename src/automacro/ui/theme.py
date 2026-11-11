@@ -29,6 +29,14 @@ def palette(theme: str) -> dict[str, str]:
 
 def build_qss(theme: str) -> str:
     c = palette(theme)
+    check_rule = ""
+    try:
+        from automacro.ui.icons import checkmark_file
+        path = checkmark_file(c["accent_text"], c["accent"])
+        if path:
+            check_rule = f"QCheckBox::indicator:checked {{ image: url({path}); }}"
+    except Exception:       # sem Qt/gráficos (ex.: testes de lógica): segue sem a marca
+        pass
     return f"""
 * {{ font-size: 14px; }}
 QMainWindow, QDialog, QWidget#root {{ background: {c['bg']}; color: {c['text']}; }}
@@ -131,6 +139,7 @@ QCheckBox::indicator {{ border-radius: 4px; }}
 QRadioButton::indicator {{ border-radius: 9px; }}
 QCheckBox::indicator:checked, QRadioButton::indicator:checked {{ background: {c['accent']};
   border-color: {c['accent']}; }}
+{check_rule}
 QCheckBox::indicator:disabled, QRadioButton::indicator:disabled {{ border-color: {c['border']}; }}
 
 QProgressBar {{ background: {c['bg']}; border: 1px solid {c['border']}; border-radius: 6px; height: 12px;

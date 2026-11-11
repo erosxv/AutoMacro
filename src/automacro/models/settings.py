@@ -146,6 +146,7 @@ class SafetySettings:
 @dataclass
 class UISettings:
     theme: str = "dark"
+    dismissed_notice: str = ""          # texto do aviso de limitações que o usuário ocultou
 
     def sanitize(self) -> "UISettings":
         if self.theme not in ("dark", "light"):

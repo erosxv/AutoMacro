@@ -107,7 +107,7 @@ class MainWindow(QMainWindow):
         banner_layout.addWidget(self.banner_text, 1)
         self.banner_close = QPushButton("Ocultar")
         self.banner_close.setObjectName("flat")
-        self.banner_close.clicked.connect(lambda: self.banner.setVisible(False))
+        self.banner_close.clicked.connect(self._dismiss_banner)
         banner_layout.addWidget(self.banner_close, 0, Qt.AlignmentFlag.AlignTop)
         layout.addWidget(self.banner)
         self._fill_banner()
@@ -216,9 +216,19 @@ class MainWindow(QMainWindow):
     def _fill_banner(self) -> None:
         caps = self.ctx.session.capabilities()
         lines = caps.problem_lines()
-        self.banner.setVisible(bool(lines))
+        text = "\n".join(lines)
+        # Quem já leu e clicou em "Ocultar" não vê o mesmo aviso de novo (só se ele mudar).
+        self.banner.setVisible(bool(lines) and text != self.ctx.settings.ui.dismissed_notice)
         if lines:
-            self.banner_text.setText("\n".join(lines))
+            self.banner_text.setText(text)
+
+    def _dismiss_banner(self) -> None:
+        self.banner.setVisible(False)
+        self.ctx.settings.ui.dismissed_notice = self.banner_text.text()
+        try:
+            self.ctx.store.save(self.ctx.settings)
+        except OSError:
+            log.exception("Não foi possível guardar o aviso ocultado")
 
     def apply_theme(self) -> None:
         theme = self.ctx.settings.ui.theme

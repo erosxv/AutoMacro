@@ -44,6 +44,27 @@ def _fill(p: QPainter, c: QColor) -> None:
     p.setBrush(c)
 
 
+def checkmark_file(color: str, background: str) -> str | None:
+    """PNG do 'check' branco/escuro sobre fundo transparente, para o estilo (QSS) das caixas.
+
+    O QSS só aceita imagem por arquivo; grava em uma pasta temporária e devolve o caminho."""
+    import tempfile
+    from pathlib import Path
+
+    try:
+        folder = Path(tempfile.gettempdir()) / "automacro-ui"
+        folder.mkdir(parents=True, exist_ok=True)
+        target = folder / f"check_{color.lstrip('#')}.png"
+        if not target.exists():
+            icon = _make(color, lambda p, c: p.drawPolyline(
+                [QPointF(6, 12.5), QPointF(10.2, 16.5), QPointF(18, 7.5)]), 16)
+            if not icon.pixmap(32, 32).save(str(target)):
+                return None
+        return target.as_posix()
+    except Exception:
+        return None
+
+
 def play(color: str, size: int = 18) -> QIcon:
     def d(p, c):
         _fill(p, c)
