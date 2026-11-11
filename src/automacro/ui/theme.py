@@ -47,6 +47,7 @@ QTabBar::tab:selected {{ color: {c['text']}; border-bottom: 2px solid {c['accent
 QTabBar::tab:hover:!selected {{ color: {c['text']}; }}
 
 QFrame#card {{ background: {c['surface2']}; border: 1px solid {c['border']}; border-radius: 10px; }}
+QFrame#plainbox {{ background: transparent; border: none; }}
 QFrame#banner {{ background: {c['surface2']}; border: none; border-radius: 10px; }}
 QPushButton#flat {{ background: transparent; border: none; color: {c['muted']}; padding: 4px 10px; }}
 QPushButton#flat:hover {{ color: {c['text']}; }}
@@ -58,7 +59,7 @@ QPushButton:hover {{ border-color: {c['accent']}; }}
 QPushButton:pressed {{ background: {c['border']}; }}
 QPushButton:disabled {{ color: {c['muted']}; background: {c['surface']}; border-color: {c['border']}; }}
 QPushButton#primary {{ background: {c['accent']}; color: {c['accent_text']}; border: none; font-weight: 600;
-                      padding: 9px 20px; }}
+                      border-radius: 12px; padding: 11px 22px; }}
 QPushButton#primary:hover {{ background: {c['accent']}; }}
 QPushButton#primary:disabled {{ background: {c['border']}; color: {c['muted']}; }}
 QPushButton#danger {{ background: {c['danger']}; color: white; border: none; font-weight: 700;
@@ -70,6 +71,28 @@ QPushButton#stopall:hover {{ background: {c['muted']}; }}
 QPushButton#stop {{ background: transparent; border: 1px solid {c['muted']}; color: {c['text']};
                    font-weight: 600; padding: 8px 18px; }}
 QPushButton#stop:disabled {{ border-color: {c['border']}; color: {c['muted']}; }}
+
+QFrame#rowlist {{ background: {c['surface']}; border-radius: 16px; }}
+QFrame#rowline {{ background: {c['border']}; border: none; margin: 0 14px; }}
+QFrame#macrorow {{ background: transparent; border-radius: 12px; }}
+QFrame#macrorow:hover {{ background: {c['surface2']}; }}
+QLabel#rowname {{ font-size: 15px; font-weight: 500; }}
+QLabel#empty {{ color: {c['muted']}; font-size: 15px; }}
+QPushButton#play {{ background: transparent; border: 1.5px solid {c['accent']}; border-radius: 22px;
+                   padding: 0; }}
+QPushButton#play:hover {{ background: {c['surface2']}; }}
+QPushButton#play:disabled {{ border-color: {c['border']}; }}
+QPushButton#iconbtn {{ background: transparent; border: none; border-radius: 22px; padding: 0; }}
+QPushButton#iconbtn:hover {{ background: {c['surface2']}; }}
+QPushButton#iconbtn::menu-indicator {{ image: none; width: 0; }}
+QFrame#nowbar {{ background: {c['surface2']}; border: none; border-radius: 16px; }}
+QLabel#nowtitle {{ font-weight: 500; font-size: 14px; }}
+QProgressBar#nowprogress {{ background: {c['border']}; border: none; border-radius: 3px; }}
+QProgressBar#nowprogress::chunk {{ background: {c['accent']}; border-radius: 3px; }}
+QMenu {{ background: {c['surface']}; border: 1px solid {c['border']}; border-radius: 10px; padding: 6px; }}
+QMenu::item {{ padding: 9px 18px; border-radius: 6px; }}
+QMenu::item:selected {{ background: {c['surface2']}; }}
+QMenu::separator {{ height: 1px; background: {c['border']}; margin: 6px 8px; }}
 
 QFrame#nav {{ background: {c['surface']}; border: none; }}
 QLabel#brand {{ font-size: 17px; font-weight: 600; padding: 0 10px 16px 10px; }}

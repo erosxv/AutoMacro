@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import logging
 
-from PySide6.QtCore import Qt, QTimer, QUrl
-from PySide6.QtGui import QCloseEvent, QDesktopServices
+from PySide6.QtCore import QSize, Qt, QTimer, QUrl
+from PySide6.QtGui import QCloseEvent, QDesktopServices, QIcon
 from PySide6.QtWidgets import (
     QApplication,
     QFrame,
@@ -35,7 +35,10 @@ from automacro.ui.tabs.recorder import RecorderTab
 from automacro.ui.tabs.settings import SettingsTab
 from automacro.ui.theme import STATE_COLORS, build_qss, palette
 from automacro.ui.updates import UpdateController
-from automacro.ui.widgets import StatusPill, muted_label
+from automacro.ui import icons
+from automacro.ui.macros_page import LIST, OPTIONS, RECORD, MacrosPage
+from automacro.ui.nowbar import NowBar
+from automacro.ui.widgets import StatusPill, scrolled
 
 log = logging.getLogger(__name__)
 
@@ -49,32 +52,6 @@ def _nav_button(text: str, name: str) -> QPushButton:
     button.setCheckable(True)
     button.setCursor(Qt.CursorShape.PointingHandCursor)
     return button
-
-
-def _scrolled(widget: QWidget) -> QWidget:
-    """Página rolável: em janela baixa ela rola, em vez de o Qt espremer os campos.
-
-    O cartão de ação da página (Iniciar/Parar, Gravar, Reproduzir), se houver, sai da rolagem e
-    fica fixo embaixo: a ação principal nunca some atrás da barra de rolagem."""
-    area = QScrollArea()
-    area.setWidgetResizable(True)
-    area.setFrameShape(QFrame.Shape.NoFrame)
-    area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-    area.setWidget(widget)
-    pinned = getattr(widget, "run_card", None)
-    if pinned is None:
-        return area
-    widget.layout().removeWidget(pinned)
-    container = QWidget()
-    box = QVBoxLayout(container)
-    box.setContentsMargins(0, 0, 0, 0)
-    box.setSpacing(0)
-    box.addWidget(area, 1)
-    holder = QVBoxLayout()
-    holder.setContentsMargins(18, 4, 18, 6)
-    holder.addWidget(pinned)
-    box.addLayout(holder)
-    return container
 
 
 class MainWindow(QMainWindow):
@@ -169,33 +146,15 @@ class MainWindow(QMainWindow):
         self.settings_tab = SettingsTab(ctx, self.show_error)
         self._tab_list = [self.autoclicker, self.recorder, self.player, self.library, self.settings_tab]
 
-        # "Macros" reúne biblioteca, gravação e reprodução numa página só.
-        self.macro_pages = QStackedWidget()
-        macros = QWidget()
-        macros_layout = QVBoxLayout(macros)
-        macros_layout.setContentsMargins(0, 0, 0, 0)
-        macros_layout.setSpacing(12)
-        seg_row = QHBoxLayout()
-        seg_row.setSpacing(6)
-        self._seg_group = QButtonGroup(self)
-        self._seg_group.setExclusive(True)
-        for index, (page, name) in enumerate([(self.library, "Biblioteca"), (self.recorder, "Gravar"),
-                                              (self.player, "Reproduzir")]):
-            self.macro_pages.addWidget(page if page is self.library else _scrolled(page))
-            button = _nav_button(name, "seg")
-            self._seg_group.addButton(button, index)
-            seg_row.addWidget(button)
-        seg_row.addStretch(1)
-        self._seg_group.button(0).setChecked(True)
-        self._seg_group.idClicked.connect(self.macro_pages.setCurrentIndex)
-        macros_layout.addLayout(seg_row)
-        macros_layout.addWidget(self.macro_pages, 1)
+        self.macros_page = MacrosPage(ctx, self.library, self.recorder, self.player)
 
         self.pages = QStackedWidget()
-        self.pages.addWidget(_scrolled(self.autoclicker))
-        self.pages.addWidget(macros)
+        self.pages.addWidget(scrolled(self.autoclicker))
+        self.pages.addWidget(self.macros_page)
         self.pages.addWidget(self.settings_tab)
         layout.addWidget(self.pages, 1)
+        self.nowbar = NowBar(ctx)
+        layout.addWidget(self.nowbar)
 
         # ---- navegação (barra lateral ou inferior, conforme a largura) ---------------------
         self.nav = QFrame()
@@ -267,6 +226,10 @@ class MainWindow(QMainWindow):
         if app is not None:
             app.setStyleSheet(build_qss(theme))
         self._theme_palette = palette(theme)
+        self._apply_nav_icons()
+        self.nowbar.apply_theme()
+        self.macros_page.apply_theme()
+        self.library.refresh()
         self._set_state(self.ctx.session.state, self.ctx.session.activity)
 
     # ======================================================================================
@@ -277,6 +240,13 @@ class MainWindow(QMainWindow):
         self.pill.set_color(color, text or STATE_LABELS[state])
         for tab in self._tab_list:
             tab.set_state(state, activity)
+        if self.player._macro is not None:
+            self.nowbar.set_macro_name(self.player._macro.name)
+        self.nowbar.set_state(state, activity)
+        self.macros_page.set_state(state)
+        if state is AppState.RECORDING:           # gravação iniciada por atalho: mostra o painel
+            self.show_page(1)
+            self.macros_page.show_view(RECORD)
 
     def _on_event(self, event: object) -> None:
         if isinstance(event, StateChanged):
@@ -287,6 +257,7 @@ class MainWindow(QMainWindow):
             self.show_notice(event.text, event.level)
         elif isinstance(event, ActivityFinished) and event.error:
             self.show_notice(event.error, "error")
+        self.nowbar.handle_event(event)
         for tab in self._tab_list:
             tab.handle_event(event)
 
@@ -313,11 +284,12 @@ class MainWindow(QMainWindow):
         self.library.refresh(macro_id)
         self.player.refresh_macros(select_id=macro_id)
         self.show_macro_page(self.library)
-        self.show_notice("Macro salva na biblioteca.", "info")
+        self.show_notice("Macro salva.", "info")
 
     def _use_in_player(self, macro_id: str) -> None:
+        """Botão de play de uma linha: seleciona a macro e já reproduz."""
         self.player.select_macro(macro_id)
-        self.show_macro_page(self.player)
+        self.player._play()
 
     def show_page(self, index: int) -> None:
         self.pages.setCurrentIndex(index)
@@ -326,9 +298,7 @@ class MainWindow(QMainWindow):
 
     def show_macro_page(self, page: QWidget) -> None:
         self.show_page(1)
-        index = {self.library: 0, self.recorder: 1, self.player: 2}[page]
-        self.macro_pages.setCurrentIndex(index)
-        self._seg_group.button(index).setChecked(True)
+        self.macros_page.show_view({self.library: LIST, self.recorder: RECORD, self.player: OPTIONS}[page])
 
     # ---- layout responsivo -----------------------------------------------------------------
     def _apply_layout_mode(self, compact: bool) -> None:
@@ -366,6 +336,15 @@ class MainWindow(QMainWindow):
             button.style().polish(button)
         self.nav.style().unpolish(self.nav)
         self.nav.style().polish(self.nav)
+
+    def _apply_nav_icons(self) -> None:
+        c = self._theme_palette
+        for button, make in zip(self._nav_buttons, (icons.cursor, icons.list_, icons.sliders)):
+            icon = QIcon()
+            icon.addPixmap(make(c["muted"]).pixmap(22, 22), QIcon.Mode.Normal, QIcon.State.Off)
+            icon.addPixmap(make(c["text"]).pixmap(22, 22), QIcon.Mode.Normal, QIcon.State.On)
+            button.setIcon(icon)
+            button.setIconSize(QSize(22, 22))
 
     def _nav_stretch_visible(self, visible: bool) -> None:
         # Em modo lateral o espaço sobra embaixo; em modo inferior os botões dividem a largura.

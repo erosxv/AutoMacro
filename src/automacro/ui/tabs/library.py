@@ -4,19 +4,19 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtWidgets import (
-    QAbstractItemView,
     QFileDialog,
+    QFrame,
     QHBoxLayout,
-    QHeaderView,
     QInputDialog,
+    QLabel,
     QMenu,
     QMessageBox,
     QPushButton,
-    QTableWidget,
-    QTableWidgetItem,
+    QScrollArea,
     QVBoxLayout,
+    QWidget,
 )
 
 from automacro.models.events import MacroFormatError
@@ -27,89 +27,132 @@ from automacro.ui.widgets import fmt_duration, muted_label
 
 
 class LibraryTab(BaseTab):
-    use_in_player = Signal(str)        # id da macro
+    """Lista de macros em linhas: nome, resumo, botão de reproduzir e menu de ações."""
+
+    use_in_player = Signal(str)        # id da macro (reproduzir)
     changed = Signal()                 # biblioteca mudou (para atualizar o Reprodutor)
 
     def __init__(self, ctx, on_error) -> None:
         super().__init__(ctx)
         self._on_error = on_error
+        self._target: str | None = None
+        self._idle = True
 
         root = QVBoxLayout(self)
-        root.setContentsMargins(18, 18, 18, 18)
-        root.setSpacing(12)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(8)
 
-        self.table = QTableWidget(0, 5)
-        self.table.setHorizontalHeaderLabels(["Nome", "Eventos", "Duração", "Atualizada em", "Origem"])
-        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.table.setAlternatingRowColors(True)
-        self.table.verticalHeader().setVisible(False)
-        header = self.table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        for col in (1, 2, 3, 4):
-            header.setSectionResizeMode(col, QHeaderView.ResizeMode.ResizeToContents)
-        self.table.setColumnHidden(3, True)     # menos colunas = mais simples; dados seguem no arquivo
-        self.table.setColumnHidden(4, True)
-        self.table.itemSelectionChanged.connect(self._update_buttons)
-        self.table.itemDoubleClicked.connect(lambda *_: self._use())
-        root.addWidget(self.table, 1)
+        self.empty = QLabel("Nenhuma macro ainda.\nToque em Nova gravação para criar a primeira.")
+        self.empty.setObjectName("empty")
+        self.empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        root.addWidget(self.empty, 1)
 
-        self.empty = muted_label("A biblioteca está vazia. Grave uma macro ou importe um arquivo .json.")
-        root.addWidget(self.empty)
-
-        # Uma ação principal à vista; o resto fica num menu, para caber em janela estreita.
-        row = QHBoxLayout()
-        self.use_btn = QPushButton("Reproduzir")
-        self.use_btn.setObjectName("primary")
-        self.use_btn.clicked.connect(self._use)
-        row.addWidget(self.use_btn)
-        row.addStretch(1)
-        self.more_btn = QPushButton("Mais ações")
-        menu = QMenu(self.more_btn)
-        self.edit_btn = menu.addAction("Editar eventos…", self._edit)
-        self.rename_btn = menu.addAction("Renomear", self._rename)
-        self.dup_btn = menu.addAction("Duplicar", self._duplicate)
-        self.delete_btn = menu.addAction("Excluir", self._delete)
-        menu.addSeparator()
-        self.import_btn = menu.addAction("Importar…", self._import)
-        self.export_btn = menu.addAction("Exportar…", self._export)
-        self.more_btn.setMenu(menu)
-        row.addWidget(self.more_btn)
-        root.addLayout(row)
+        self.rows_area = QScrollArea()
+        self.rows_area.setWidgetResizable(True)
+        self.rows_area.setFrameShape(QFrame.Shape.NoFrame)
+        self.rows_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        holder = QFrame()
+        holder.setObjectName("rowlist")
+        self.rows_layout = QVBoxLayout(holder)
+        self.rows_layout.setContentsMargins(6, 4, 6, 4)
+        self.rows_layout.setSpacing(0)
+        self.rows_area.setWidget(holder)
+        root.addWidget(self.rows_area, 1)
 
         self.refresh()
 
     # ---- dados ------------------------------------------------------------------------
     def refresh(self, select_id: str | None = None) -> None:
-        keep = select_id or self.selected_id()
+        from automacro.ui import icons
+        from automacro.ui.theme import palette
+
+        c = palette(self.ctx.settings.ui.theme)
+        while self.rows_layout.count():
+            item = self.rows_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.hide()
+                widget.setParent(None)      # some já; deleteLater sozinho deixaria a linha pintada
+                widget.deleteLater()
         infos = self.ctx.repo.list()
-        self.table.setRowCount(len(infos))
-        for row, info in enumerate(infos):
-            cells = [info.name, str(info.event_count), fmt_duration(info.duration_ms),
-                     info.updated_at.replace("T", " ")[:16], "importada" if info.imported else "gravada"]
-            for col, text in enumerate(cells):
-                item = QTableWidgetItem(text)
-                if col == 0:
-                    item.setData(Qt.ItemDataRole.UserRole, info.id)
-                self.table.setItem(row, col, item)
-            if info.id == keep:
-                self.table.selectRow(row)
+        for index, info in enumerate(infos):
+            if index:
+                line = QFrame()
+                line.setObjectName("rowline")
+                line.setFixedHeight(1)
+                self.rows_layout.addWidget(line)
+            self.rows_layout.addWidget(self._make_row(info, icons, c))
+        self.rows_layout.addStretch(1)
         self.empty.setVisible(not infos)
-        self._update_buttons()
+        self.rows_area.setVisible(bool(infos))
+
+    def _make_row(self, info, icons, c) -> QWidget:
+        row = QFrame()
+        row.setObjectName("macrorow")
+        lay = QHBoxLayout(row)
+        lay.setContentsMargins(12, 10, 8, 10)
+        lay.setSpacing(8)
+        text = QVBoxLayout()
+        text.setSpacing(2)
+        name = QLabel(info.name)
+        name.setObjectName("rowname")
+        name.setToolTip(info.name)
+        summary = f"{info.event_count} ações · {fmt_duration(info.duration_ms)}"
+        if info.imported:
+            summary += " · importada"
+        sub = muted_label(summary)
+        sub.setWordWrap(False)
+        text.addWidget(name)
+        text.addWidget(sub)
+        lay.addLayout(text, 1)
+
+        play_btn = QPushButton()
+        play_btn.setObjectName("play")
+        play_btn.setIcon(icons.play(c["accent"]))
+        play_btn.setIconSize(QSize(16, 16))
+        play_btn.setFixedSize(44, 44)
+        play_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        play_btn.setToolTip(f"Reproduzir {info.name}")
+        play_btn.setAccessibleName(f"Reproduzir {info.name}")
+        play_btn.clicked.connect(lambda _=False, i=info.id: self._act(i, self._use))
+        play_btn.setEnabled(self._idle)
+        lay.addWidget(play_btn)
+
+        more_btn = QPushButton()
+        more_btn.setObjectName("iconbtn")
+        more_btn.setIcon(icons.more(c["muted"]))
+        more_btn.setIconSize(QSize(20, 20))
+        more_btn.setFixedSize(44, 44)
+        more_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        more_btn.setAccessibleName(f"Mais opções para {info.name}")
+        menu = QMenu(more_btn)
+        menu.addAction("Editar eventos…", lambda i=info.id: self._act(i, self._edit))
+        menu.addAction("Renomear", lambda i=info.id: self._act(i, self._rename))
+        menu.addAction("Duplicar", lambda i=info.id: self._act(i, self._duplicate))
+        menu.addAction("Exportar…", lambda i=info.id: self._act(i, self._export))
+        menu.addSeparator()
+        menu.addAction("Excluir", lambda i=info.id: self._act(i, self._delete))
+        more_btn.setMenu(menu)
+        lay.addWidget(more_btn)
+        return row
+
+    def set_state(self, state, activity) -> None:
+        self._idle = state.value == "idle"
+        for button in self.findChildren(QPushButton, "play"):
+            button.setEnabled(self._idle)
+
+    def _act(self, macro_id: str, action) -> None:
+        self._target = macro_id
+        try:
+            action()
+        finally:
+            self._target = None
 
     def selected_id(self) -> str | None:
-        rows = self.table.selectionModel().selectedRows() if self.table.selectionModel() else []
-        if not rows:
-            return None
-        item = self.table.item(rows[0].row(), 0)
-        return item.data(Qt.ItemDataRole.UserRole) if item else None
+        return self._target
 
-    def _update_buttons(self) -> None:
-        has = self.selected_id() is not None
-        for b in (self.use_btn, self.edit_btn, self.rename_btn, self.dup_btn, self.delete_btn,
-                  self.export_btn):
-            b.setEnabled(has)
+    def import_macro(self) -> None:
+        self._import()
 
     # ---- ações ------------------------------------------------------------------------
     def _use(self) -> None:

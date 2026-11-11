@@ -6,6 +6,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import (
     QFrame,
+    QScrollArea,
     QHBoxLayout,
     QKeySequenceEdit,
     QLabel,
@@ -113,3 +114,29 @@ class HotkeyEdit(QWidget):
             return
         self._edit.setKeySequence(QKeySequence.fromString(self._value, QKeySequence.SequenceFormat.PortableText))
         self._edit.clearFocus()
+
+
+def scrolled(widget: QWidget) -> QWidget:
+    """Página rolável: em janela baixa ela rola, em vez de o Qt espremer os campos.
+
+    O cartão de ação da página (``run_card``: Iniciar/Parar, Gravar, Reproduzir), se houver, sai
+    da rolagem e fica fixo embaixo: a ação principal nunca some atrás da barra de rolagem."""
+    area = QScrollArea()
+    area.setWidgetResizable(True)
+    area.setFrameShape(QFrame.Shape.NoFrame)
+    area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+    area.setWidget(widget)
+    pinned = getattr(widget, "run_card", None)
+    if pinned is None:
+        return area
+    widget.layout().removeWidget(pinned)
+    container = QWidget()
+    box = QVBoxLayout(container)
+    box.setContentsMargins(0, 0, 0, 0)
+    box.setSpacing(0)
+    box.addWidget(area, 1)
+    holder = QVBoxLayout()
+    holder.setContentsMargins(0, 8, 0, 0)
+    holder.addWidget(pinned)
+    box.addLayout(holder)
+    return container

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QButtonGroup,
     QComboBox,
@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QRadioButton,
     QSpinBox,
     QVBoxLayout,
+    QWidget,
 )
 
 from automacro.core.errors import AutoMacroError
@@ -63,6 +64,17 @@ class AutoClickerTab(BaseTab):
         interval_row.addWidget(self.unit, 1)
         form.addRow("Intervalo entre cliques", interval_row)
 
+        # Opções avançadas ficam recolhidas: o essencial é botão + intervalo + Iniciar.
+        more = QWidget()
+        more_lay = QVBoxLayout(more)
+        more_lay.setContentsMargins(0, 8, 0, 0)
+        more_lay.setSpacing(12)
+        form2 = QFormLayout()
+        form2.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
+        form2.setHorizontalSpacing(18)
+        form2.setVerticalSpacing(10)
+        more_lay.addLayout(form2)
+
         count_row = QHBoxLayout()
         self.count = QSpinBox()
         self.count.setRange(1, 100_000_000)
@@ -73,16 +85,26 @@ class AutoClickerTab(BaseTab):
         self.count.setEnabled(False)
         count_row.addWidget(self.count, 1)
         count_row.addWidget(self.infinite)
-        form.addRow("Quantidade de cliques", count_row)
+        form2.addRow("Quantidade de cliques", count_row)
 
         self.max_runtime = QSpinBox()
         self.max_runtime.setRange(0, 86_400)
         self.max_runtime.setSuffix(" s  (0 = sem limite)")
-        form.addRow("Tempo máximo", self.max_runtime)
+        form2.addRow("Tempo máximo", self.max_runtime)
         card.body.addLayout(form)
+        self.more_btn = QPushButton("Mais opções")
+        self.more_btn.setObjectName("flat")
+        self.more_btn.setCheckable(True)
+        self.more_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.more_btn.toggled.connect(self._toggle_more)
+        card.body.addWidget(self.more_btn, 0, Qt.AlignmentFlag.AlignLeft)
+        card.body.addWidget(more)
+        more.setVisible(False)
+        self._more = more
         root.addWidget(card)
 
         pos = Card()
+        pos.setObjectName("plainbox")      # dentro do cartão: sem segunda caixa
         pos.body.addWidget(heading("Onde clicar"))
         self.pos_current = QRadioButton("Na posição atual do cursor")
         self.pos_fixed = QRadioButton("Em uma coordenada específica")
@@ -102,7 +124,7 @@ class AutoClickerTab(BaseTab):
         pos.body.addWidget(self.capture_btn)
         self.pos_fixed.toggled.connect(self._pos_mode_changed)
         self._pos_mode_changed()
-        root.addWidget(pos)
+        more_lay.addWidget(pos)
 
         run = Card()
         self.run_card = run     # fica fixo embaixo da janela (fora da rolagem)
@@ -136,6 +158,10 @@ class AutoClickerTab(BaseTab):
         self.set_state(AppState.IDLE, None)
 
     # ---- configuração <-> widgets ---------------------------------------------------
+    def _toggle_more(self, on: bool) -> None:
+        self._more.setVisible(on)
+        self.more_btn.setText("Menos opções" if on else "Mais opções")
+
     def _unit_changed(self) -> None:
         to_seconds = self.unit.currentIndex() == 1
         if to_seconds == self._unit_is_seconds:
