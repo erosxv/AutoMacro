@@ -44,25 +44,30 @@ def _fill(p: QPainter, c: QColor) -> None:
     p.setBrush(c)
 
 
-def checkmark_file(color: str, background: str) -> str | None:
-    """PNG do 'check' branco/escuro sobre fundo transparente, para o estilo (QSS) das caixas.
-
-    O QSS só aceita imagem por arquivo; grava em uma pasta temporária e devolve o caminho."""
+def _qss_image(name: str, color: str, draw) -> str | None:
+    """Grava um ícone em PNG numa pasta temporária e devolve o caminho (o QSS só aceita arquivo)."""
     import tempfile
     from pathlib import Path
 
     try:
         folder = Path(tempfile.gettempdir()) / "automacro-ui"
         folder.mkdir(parents=True, exist_ok=True)
-        target = folder / f"check_{color.lstrip('#')}.png"
-        if not target.exists():
-            icon = _make(color, lambda p, c: p.drawPolyline(
-                [QPointF(6, 12.5), QPointF(10.2, 16.5), QPointF(18, 7.5)]), 16)
-            if not icon.pixmap(32, 32).save(str(target)):
-                return None
+        target = folder / f"{name}_{color.lstrip('#')}.png"
+        if not target.exists() and not _make(color, draw, 16).pixmap(32, 32).save(str(target)):
+            return None
         return target.as_posix()
     except Exception:
         return None
+
+
+def checkmark_file(color: str, background: str = "") -> str | None:
+    return _qss_image("check", color, lambda p, c: p.drawPolyline(
+        [QPointF(6, 12.5), QPointF(10.2, 16.5), QPointF(18, 7.5)]))
+
+
+def chevron_down_file(color: str) -> str | None:
+    return _qss_image("chevdown", color, lambda p, c: p.drawPolyline(
+        [QPointF(6.5, 9.5), QPointF(12, 15), QPointF(17.5, 9.5)]))
 
 
 def play(color: str, size: int = 18) -> QIcon:

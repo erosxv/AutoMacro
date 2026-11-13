@@ -7,13 +7,13 @@ PALETTES: dict[str, dict[str, str]] = {
         "bg": "#17181c", "surface": "#1e2025", "surface2": "#2b2e35", "border": "#2b2e35",
         "text": "#e8eaed", "muted": "#9aa0a8", "accent": "#4cc2a8", "accent_text": "#0e1f1b",
         "danger": "#e5484d", "success": "#30a46c", "warning": "#f5a524", "info": "#4c9aff",
-        "idle": "#4b5263",
+        "idle": "#4b5263", "line": "#3d424c", "accent_hover": "#62d1b8", "accent_press": "#3fae96",
     },
     "light": {
         "bg": "#fbfaf7", "surface": "#ffffff", "surface2": "#f1efe9", "border": "#e4e1da",
         "text": "#1f2328", "muted": "#5b616a", "accent": "#1f7a6d", "accent_text": "#ffffff",
         "danger": "#d92d33", "success": "#1f8f58", "warning": "#c77d00", "info": "#2b7de9",
-        "idle": "#98a0b3",
+        "idle": "#98a0b3", "line": "#cdc9bf", "accent_hover": "#278a7b", "accent_press": "#186a5e",
     },
 }
 
@@ -30,15 +30,19 @@ def palette(theme: str) -> dict[str, str]:
 def build_qss(theme: str) -> str:
     c = palette(theme)
     check_rule = ""
+    chevron_rule = ""
     try:
         from PySide6.QtGui import QGuiApplication
 
-        from automacro.ui.icons import checkmark_file
+        from automacro.ui.icons import checkmark_file, chevron_down_file
         # QPixmap sem aplicativo Qt derruba o processo (não é exceção): só desenha com app.
         path = (checkmark_file(c["accent_text"], c["accent"])
                 if QGuiApplication.instance() is not None else None)
         if path:
             check_rule = f"QCheckBox::indicator:checked {{ image: url({path}); }}"
+        chevron = (chevron_down_file(c["muted"]) if QGuiApplication.instance() is not None else None)
+        if chevron:
+            chevron_rule = f"QComboBox::down-arrow {{ image: url({chevron}); width: 16px; height: 16px; }}"
     except Exception:       # sem Qt/gráficos (ex.: testes de lógica): segue sem a marca
         pass
     return f"""
@@ -65,24 +69,25 @@ QPushButton#flat {{ background: transparent; border: none; color: {c['muted']}; 
 QPushButton#flat:hover {{ color: {c['text']}; }}
 QFrame#updatebar {{ background: {c['surface2']}; border: 1px solid {c['accent']}; border-radius: 8px; }}
 
-QPushButton {{ background: {c['surface2']}; border: 1px solid {c['border']}; border-radius: 8px;
-              padding: 7px 14px; }}
-QPushButton:hover {{ border-color: {c['accent']}; }}
+/* Botões em três níveis: principal (preenchido), secundário (contorno) e discreto (#flat).
+   A borda tem sempre a mesma largura, então hover e foco só mudam de cor: nada se desloca. */
+QPushButton {{ background: transparent; color: {c['text']}; border: 1.5px solid {c['line']};
+              border-radius: 12px; padding: 10px 18px; min-height: 20px; font-weight: 500; }}
+QPushButton:hover {{ background: {c['surface2']}; border-color: {c['muted']}; }}
 QPushButton:pressed {{ background: {c['border']}; }}
-QPushButton:disabled {{ color: {c['muted']}; background: {c['surface']}; border-color: {c['border']}; }}
-QPushButton#primary {{ background: {c['accent']}; color: {c['accent_text']}; border: none; font-weight: 600;
-                      border-radius: 12px; padding: 11px 22px; }}
-QPushButton#primary:hover {{ background: {c['accent']}; }}
-QPushButton#primary:disabled {{ background: {c['border']}; color: {c['muted']}; }}
-QPushButton#danger {{ background: {c['danger']}; color: white; border: none; font-weight: 700;
-                     padding: 8px 16px; }}
-QPushButton#danger:hover {{ background: {c['danger']}; border: 2px solid white; padding: 6px 14px; }}
-QPushButton#stopall {{ background: {c['text']}; color: {c['bg']}; border: none; font-weight: 600;
-                      padding: 8px 16px; }}
-QPushButton#stopall:hover {{ background: {c['muted']}; }}
-QPushButton#stop {{ background: transparent; border: 1px solid {c['muted']}; color: {c['text']};
-                   font-weight: 600; padding: 8px 18px; }}
-QPushButton#stop:disabled {{ border-color: {c['border']}; color: {c['muted']}; }}
+QPushButton:focus {{ border-color: {c['accent']}; }}
+QPushButton:disabled {{ color: {c['muted']}; border-color: {c['border']}; background: transparent; }}
+QPushButton#primary {{ background: {c['accent']}; color: {c['accent_text']}; border: 1.5px solid {c['accent']};
+                      font-weight: 600; padding: 10px 22px; }}
+QPushButton#primary:hover {{ background: {c['accent_hover']}; border-color: {c['accent_hover']}; }}
+QPushButton#primary:pressed {{ background: {c['accent_press']}; border-color: {c['accent_press']}; }}
+QPushButton#primary:focus {{ border-color: {c['text']}; }}
+QPushButton#primary:disabled {{ background: {c['surface2']}; color: {c['muted']}; border-color: {c['surface2']}; }}
+QPushButton#stopall {{ background: {c['text']}; color: {c['bg']}; border: 1.5px solid {c['text']};
+                      font-weight: 600; padding: 10px 18px; }}
+QPushButton#stopall:hover {{ background: {c['muted']}; border-color: {c['muted']}; }}
+QPushButton#stopall:pressed {{ background: {c['line']}; border-color: {c['line']}; }}
+QPushButton#stopall:focus {{ border-color: {c['accent']}; }}
 
 QFrame#rowlist {{ background: {c['surface']}; border-radius: 16px; }}
 QFrame#rowline {{ background: {c['border']}; border: none; margin: 0 14px; }}
@@ -91,11 +96,13 @@ QFrame#macrorow:hover {{ background: {c['surface2']}; }}
 QLabel#rowname {{ font-size: 15px; font-weight: 500; }}
 QLabel#empty {{ color: {c['muted']}; font-size: 15px; }}
 QPushButton#play {{ background: transparent; border: 1.5px solid {c['accent']}; border-radius: 22px;
-                   padding: 0; }}
+                   padding: 0; min-width: 40px; max-width: 40px; min-height: 40px; max-height: 40px; }}
 QPushButton#play:hover {{ background: {c['surface2']}; }}
-QPushButton#play:disabled {{ border-color: {c['border']}; }}
-QPushButton#iconbtn {{ background: transparent; border: none; border-radius: 22px; padding: 0; }}
-QPushButton#iconbtn:hover {{ background: {c['surface2']}; }}
+QPushButton#play:disabled {{ background: transparent; border: 1.5px solid {c['line']}; border-radius: 22px; }}
+QPushButton#iconbtn {{ background: transparent; border: none; border-radius: 22px; padding: 0;
+                      min-width: 40px; max-width: 40px; min-height: 40px; max-height: 40px; }}
+QPushButton#iconbtn:hover {{ background: {c['surface2']}; border: none; border-radius: 22px; }}
+QPushButton#iconbtn:disabled {{ background: transparent; border: none; border-radius: 22px; }}
 QPushButton#iconbtn::menu-indicator {{ image: none; width: 0; }}
 QFrame#nowbar {{ background: {c['surface2']}; border: none; border-radius: 16px; }}
 QLabel#nowtitle {{ font-weight: 500; font-size: 14px; }}
@@ -117,7 +124,11 @@ QPushButton#seg {{ background: transparent; border: none; border-radius: 10px; c
                   padding: 8px 16px; font-weight: 500; }}
 QPushButton#seg:hover {{ color: {c['text']}; }}
 QPushButton#seg:checked {{ background: {c['surface2']}; color: {c['text']}; }}
-QPushButton:focus {{ outline: none; border: 2px solid {c['accent']}; }}
+/* Foco de teclado: o raio precisa ser repetido, senão a borda do foco volta a ser reta. */
+QPushButton#nav:focus {{ border: 1.5px solid {c['accent']}; border-radius: 12px; }}
+QPushButton#seg:focus {{ border: 1.5px solid {c['accent']}; border-radius: 10px; }}
+QPushButton#flat:focus {{ border: 1.5px solid {c['accent']}; border-radius: 10px; }}
+QPushButton#iconbtn:focus, QPushButton#play:focus {{ border: 1.5px solid {c['accent']}; border-radius: 22px; }}
 
 QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox {{
   background: {c['bg']}; border: 1px solid {c['border']}; border-radius: 7px; padding: 5px 8px;
@@ -144,6 +155,8 @@ QRadioButton::indicator {{ border-radius: 9px; }}
 QCheckBox::indicator:checked, QRadioButton::indicator:checked {{ background: {c['accent']};
   border-color: {c['accent']}; }}
 {check_rule}
+QComboBox::drop-down {{ border: none; width: 30px; background: transparent; }}
+{chevron_rule}
 QCheckBox::indicator:disabled, QRadioButton::indicator:disabled {{ border-color: {c['border']}; }}
 
 QProgressBar {{ background: {c['bg']}; border: 1px solid {c['border']}; border-radius: 6px; height: 12px;
